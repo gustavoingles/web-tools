@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/yosssi/gohtml"
 )
 
 func main() {
@@ -45,7 +47,7 @@ func fetchUrl(url string, wg *sync.WaitGroup) {
 		log.Printf("Error parsing response's body: %v\n", err)
 	}
 
-	fileName := urlParser(&url) 
+	fileName := urlParser(&url)
 
 	err = writeToFile(fileName, body)
 	if err != nil {
@@ -68,6 +70,7 @@ func writeToFile(fileName string, fileContent []byte) error {
 	}
 	defer file.Close()
 
-	_, err = file.Write(fileContent)
+	formattedFile := gohtml.FormatBytes(fileContent)
+	_, err = file.Write(formattedFile)
 	return err
 }

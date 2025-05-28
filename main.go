@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"io"
 	"log"
 	"net/http"
@@ -14,7 +15,7 @@ import (
 
 func main() {
 	var wg sync.WaitGroup
-	urls := []string{"https://google.com", "https://theodinproject.com", "https://github.com"}
+	urls := getUrls()
 
 	wg.Add(len(urls))
 	for _, v := range urls {
@@ -55,6 +56,22 @@ func fetchUrl(url string, wg *sync.WaitGroup) {
 	}
 }
 
+func getUrls() []string {
+	if len(os.Args) > 1 {
+		urls := os.Args[1:]
+		return urls
+	} 
+	urls := []string{}
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" {
+			urls = append(urls, line)
+		}
+	}
+	return urls
+}
+
 func urlParser(url *string) string {
 	removedScheme := strings.TrimPrefix(*url, "https://")
 	removedTLD := strings.TrimSuffix(removedScheme, ".com")
@@ -64,7 +81,7 @@ func urlParser(url *string) string {
 }
 
 func writeToFile(fileName string, fileContent []byte) error {
-	file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE, 0644)
+	file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}

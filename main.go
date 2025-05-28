@@ -1,17 +1,18 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 )
 
 func main() {
 	var wg sync.WaitGroup
-	urls := []string{"https://www.google.com", "https://pkg.go.dev/std", "https://www.github.com"}
+	urls := []string{"https://google.com", "https://theodinproject.com", "https://github.com"}
 
 	wg.Add(len(urls))
 	for _, v := range urls {
@@ -44,5 +45,29 @@ func fetchUrl(url string, wg *sync.WaitGroup) {
 		log.Printf("Error parsing response's body: %v\n", err)
 	}
 
-	fmt.Println(string(body))
+	fileName := urlParser(&url) 
+
+	err = writeToFile(fileName, body)
+	if err != nil {
+		log.Printf("Error creating, opening, or writing into the file: %v\n", err)
+	}
+}
+
+func urlParser(url *string) string {
+	removedScheme := strings.TrimPrefix(*url, "https://")
+	removedTLD := strings.TrimSuffix(removedScheme, ".com")
+	domainHTML := removedTLD + ".html"
+
+	return domainHTML
+}
+
+func writeToFile(fileName string, fileContent []byte) error {
+	file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.Write(fileContent)
+	return err
 }

@@ -2,84 +2,93 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/yosssi/gohtml"
 )
 
+var rightCount atomic.Int64
+
 var client = http.Client{
-	Timeout: 5 * time.Second,
+	Timeout: 30 * time.Second,
 }
 
 func main() {
 	var wg sync.WaitGroup
-	urls := getUrls()
-
-	for _, v := range urls {
+	urls := make(chan string, 100)
+	workerCount := runtime.NumCPU() * 2
+	for range workerCount  {
 		wg.Add(1)
-		go fetchUrl(v, &wg)
+		go fetchUrl(urls, &wg)
 	}
+	go getUrls(urls)
 	wg.Wait()
+	fmt.Printf("got %d requests right", rightCount.Load())
 }
 
-func fetchUrl(url string, wg *sync.WaitGroup) {
+func fetchUrl(urls <-chan string, wg *sync.WaitGroup) {
 	defer wg.Done()
+	for url := range urls {
+		func ()  {
+			resp, err := client.Get(url)
+			if err != nil {
+				log.Printf("error fetching %s: %v", url, err)
+				return
+			}
+			defer resp.Body.Close()
 
-	resp, err := client.Get(url)
-	if err != nil {
-		log.Printf("error fetching %s: %v", url, err)
-	}
-	defer resp.Body.Close()
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+				log.Printf("%s is a valid URL", url)
+				rightCount.Add(1)
+			} else {
+				log.Printf("%s returned status code %d", url, resp.StatusCode)
+			}
 
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		log.Printf("%s is a valid URL", url)
-	} else {
-		log.Printf("%s returned status code %d", url, resp.StatusCode)
-	}
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				log.Printf("error parsing response's body: %v", err)
+				return
+			}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("error parsing response's body: %v", err)
-	}
+			// Check resp.Request.Url data about the whole URL and its pieces
+			// fileName := resp.Request.URL.Hostname()
+			fileName := resp.Request.URL.Hostname()
 
-	// Check resp.Request.Url data about the whole URL and its pieces
-	// fileName := resp.Request.URL.Hostname()
-	fileName := urlParser(url)
+			err = writeToFile(fileName, body)
+			if err != nil {
+				log.Printf("error creating, opening, or writing into the file: %v", err)
+				return
+			}
+		} ()
 
-	err = writeToFile(fileName, body)
-	if err != nil {
-		log.Printf("error creating, opening, or writing into the file: %v", err)
+
 	}
 }
 
-func getUrls() []string {
+func getUrls(urls chan<- string) {
+	defer close(urls)
 	if len(os.Args) > 1 {
-		urls := os.Args[1:]
-		return urls
-	} 
-	urls := []string{}
+		for i := 1; i < len(os.Args); i++ {
+			urls <- os.Args[i]
+		}
+		return
+	}
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line != "" {
-			urls = append(urls, line)
+			urls <- line
 		}
 	}
-	return urls
-}
-
-func urlParser(url string) string {
-	removedScheme := strings.TrimPrefix(url, "https://")
-	removedTLD := strings.TrimSuffix(removedScheme, ".com")
-	domainHTML := removedTLD + ".html"
-
-	return domainHTML
 }
 
 func writeToFile(fileName string, fileContent []byte) error {

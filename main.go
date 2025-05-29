@@ -13,12 +13,16 @@ import (
 	"github.com/yosssi/gohtml"
 )
 
+var client = http.Client{
+	Timeout: 5 * time.Second,
+}
+
 func main() {
 	var wg sync.WaitGroup
 	urls := getUrls()
 
-	wg.Add(len(urls))
 	for _, v := range urls {
+		wg.Add(1)
 		go fetchUrl(v, &wg)
 	}
 	wg.Wait()
@@ -26,10 +30,6 @@ func main() {
 
 func fetchUrl(url string, wg *sync.WaitGroup) {
 	defer wg.Done()
-
-	client := http.Client{
-		Timeout: 5 * time.Second,
-	}
 
 	resp, err := client.Get(url)
 	if err != nil {

@@ -33,26 +33,28 @@ func fetchUrl(url string, wg *sync.WaitGroup) {
 
 	resp, err := client.Get(url)
 	if err != nil {
-		log.Printf("Error fetching %s: %v\n", url, err)
+		log.Printf("error fetching %s: %v", url, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		log.Printf("%s is a valid URL\n", url)
+		log.Printf("%s is a valid URL", url)
 	} else {
-		log.Printf("%s returned status code %d\n", url, resp.StatusCode)
+		log.Printf("%s returned status code %d", url, resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("Error parsing response's body: %v\n", err)
+		log.Printf("error parsing response's body: %v", err)
 	}
 
-	fileName := urlParser(&url)
+	// Check resp.Request.Url data about the whole URL and its pieces
+	// fileName := resp.Request.URL.Hostname()
+	fileName := urlParser(url)
 
 	err = writeToFile(fileName, body)
 	if err != nil {
-		log.Printf("Error creating, opening, or writing into the file: %v\n", err)
+		log.Printf("error creating, opening, or writing into the file: %v", err)
 	}
 }
 
@@ -72,8 +74,8 @@ func getUrls() []string {
 	return urls
 }
 
-func urlParser(url *string) string {
-	removedScheme := strings.TrimPrefix(*url, "https://")
+func urlParser(url string) string {
+	removedScheme := strings.TrimPrefix(url, "https://")
 	removedTLD := strings.TrimSuffix(removedScheme, ".com")
 	domainHTML := removedTLD + ".html"
 
